@@ -163,7 +163,6 @@ char* current_time_2_string(int data_type){
 // Function designed for chat between client and server. 
 int func(int sockfd) 
 {
-
 	unsigned char buff[MAX];
 	void *data_tag = malloc(8);
 	void *data_size = malloc(4);
@@ -312,29 +311,43 @@ int func(int sockfd)
 		
 		if(data_type == 0)
 			pic_count += 1;
-		
-		if(data_type == 1 || pic_count == IMAGE_NUM){
-			if(write(sockfd, DETECTED_RESPONSE, sizeof(DETECTED_RESPONSE)) == -1){
-					printf("Error: Write to socket failed...\n");
+
+		if(data_type == 1){
+
+			//Mic data type branch of code
+			//Google API analyzes the audio and determines if response is needed
+			uint8_t mic_response = 0x01;
+			if(mic_response == 0x01){
+				if(write(sockfd, mic_response, sizeof(char)) == -1){
+					printf("Error: MIC response write to socket failed...\n");
 					break;
-			}
-			
-			printf("*** Completed transmission of data and sent %s tag ***\n\n", DETECTED_RESPONSE);
-			flag = 0;
-			
-			if(data_type == 0){
+				}
+				printf("Sent MIC response to wearable\n");
+
 				wav_read_send(sockfd);
-				pic_count = 0;
 			}
+
+		}else if(data_type == 0 && pic_count == IMAGE_NUM){
+			if(write(sockfd, DETECTED_RESPONSE, sizeof(DETECTED_RESPONSE)) == -1){
+				printf("Error: DETECTED_RESPONSE write to socket failed...\n");
+				break;
+			}
+			printf("Sent DETECTED_RESPONSE to wearable\n");
+
+			wav_read_send(sockfd);
 		}
+		
+		printf("*** Completed transmission of data and sent response to wearable ***\n\n");
+		flag = 0;
+	
 	}
 	
 	return retsize;
-} 
+}
 
 // Driver function 
 int main() 
-{ 
+{
 	int sockfd, connfd, len; 
 	struct sockaddr_in servaddr, cli;
 	

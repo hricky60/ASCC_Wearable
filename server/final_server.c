@@ -22,7 +22,7 @@
 
 #define PORT 3333
 #define SA struct sockaddr
-#define SERVER_ADDR "192.168.90.246"
+#define SERVER_ADDR "192.168.1.144"
 
 #define WAV_PATH "/home/rickysuave/Documents/OSUClasses/EmbeddedResearch/ESP32/C-Programs/server/audio/"
 #define CAM_PATH "/home/rickysuave/Documents/OSUClasses/EmbeddedResearch/ESP32/C-Programs/server/images/"
@@ -179,9 +179,12 @@ int func(int sockfd)
 	
 	int error_num;
 	int error_num_size = sizeof(error_num);
+
 	int data_type = -1;
 	int flag = 0;
 	int pic_count = 0;
+
+	uint8_t mic_response;
 	while(1){
 	
 		printf("*** Starting new read of data ***\n\n");
@@ -316,15 +319,18 @@ int func(int sockfd)
 
 			//Mic data type branch of code
 			//Google API analyzes the audio and determines if response is needed
-			uint8_t mic_response = 0x01;
+			mic_response = 0x01;
 			if(mic_response == 0x01){
-				if(write(sockfd, mic_response, sizeof(char)) == -1){
+				if(write(sockfd, &mic_response, sizeof(char)) == -1){
 					printf("Error: MIC response write to socket failed...\n");
 					break;
 				}
 				printf("Sent MIC response to wearable\n");
 
 				wav_read_send(sockfd);
+
+				printf("*** Completed transmission of data and sent response to wearable ***\n\n");
+				flag = 0;
 			}
 
 		}else if(data_type == 0 && pic_count == IMAGE_NUM){
@@ -335,11 +341,10 @@ int func(int sockfd)
 			printf("Sent DETECTED_RESPONSE to wearable\n");
 
 			wav_read_send(sockfd);
+
+			printf("*** Completed transmission of data and sent response to wearable ***\n\n");
+			flag = 0;
 		}
-		
-		printf("*** Completed transmission of data and sent response to wearable ***\n\n");
-		flag = 0;
-	
 	}
 	
 	return retsize;
@@ -370,7 +375,7 @@ int main()
 	// Binding newly created socket to given IP and verification 
 	if ((bind(sockfd, (SA*)&servaddr, sizeof(servaddr))) != 0) { 
 		printf("Error: Socket bind failed...\n"); 
-		exit(0); 
+		exit(0);
 	} 
 	else
 		printf("Socket successfully binded to %s:%d...\n", SERVER_ADDR, PORT);

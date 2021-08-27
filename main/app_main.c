@@ -84,6 +84,7 @@ uint8_t mic_flag = 0x00;
 static void adxl345_task(void *pvParameters){
 
 	BaseType_t xStatus;
+	uint8_t speaker_flag;
 	uint8_t doneArray[5] = {0x64, 0x6f, 0x6e, 0x65, 0x00}; //"done" in hex values
 
 	const TickType_t xTicksToWait = pdMS_TO_TICKS(200);
@@ -124,7 +125,7 @@ static void adxl345_task(void *pvParameters){
 	//Response struct which receives "true" or "false" from server
 	CamData response_data = {
 		.send_receive = WIFI_RECEIVE,
-		.data_pointer = (uint8_t *)heap_caps_malloc(6*sizeof(uint8_t), MALLOC_CAP_8BIT),
+		.data_pointer = (uint8_t *)heap_caps_malloc(6*sizeof(uint8_t), MALLOC_CAP_8BIT), //6 bytes to fit 5 characters plus null byte
 		.data_size = (size_t *)heap_caps_malloc(sizeof(size_t), MALLOC_CAP_8BIT),
 	};
 	*response_data.data_size = 5;
@@ -133,6 +134,12 @@ static void adxl345_task(void *pvParameters){
 	CamData speaker_data = {
 		.send_receive = WIFI_RECEIVE|SPEAKER_TYPE,
 		.data_size = malloc(sizeof(size_t)),
+	};
+
+	//Response struct which is used after mic transfer which determines if a response from server is going to occur
+	CamData mic_response = {
+		.send_receive = WIFI_RECEIVE,
+		.data_size = malloc(sizeof(size_t))
 	};
 
 
@@ -277,7 +284,6 @@ static void adxl345_task(void *pvParameters){
 				goto FLAGCHECK;
 			}
 
-			uint8_t speaker_flag;
 			flag = app_speaker(speaker_data.data_pointer, speaker_data.data_size, &speaker_flag);
 			free(speaker_data.data_pointer);
 
@@ -317,12 +323,62 @@ static void adxl345_task(void *pvParameters){
 					ESP_LOGE(ADX_TAG, "Received error from wifi task");
 				else if(strstr((char *)confirm_mes.data_pointer, "done") != NULL)
 					ESP_LOGI(ADX_TAG, "Received confirmation of transmission from WIFI task");
-				else
+				else{
 					ESP_LOGE(ADX_TAG, "Transmission error");
+					goto END;
+				}
 			}
 
 			FREE:
 			free(mic_data.data_pointer);
+
+			xStatus = xQueueSendToBack(xqueueADXtoWIFI, &mic_response, xTicksToWait);
+			ESP_LOGI(ADX_TAG, "Mic response struct sent to WIFI task");
+			vTaskDelay(1000);
+
+			MICRESPONSE: xStatus = xQueueReceive(xqueueWIFItoADX, &mic_response, xTicksToWait);
+			vTaskDelay(2000);
+			if(xStatus != pdPASS){
+				ESP_LOGE(ADX_TAG, "Could not receive confirmation of transmission from WIFI task");
+				goto MICRESPONSE;
+			}
+			else{
+				if(mic_response.send_receive == 0xff)
+					ESP_LOGE(ADX_TAG, "Received error from wifi task");
+				else if(*mic_response.data_pointer != 0x01){
+					ESP_LOGI(ADX_TAG, "No response needed from server");
+					goto END;
+				}
+				else{
+					ESP_LOGE(ADX_TAG, "Transmission error");
+					goto END;
+				}
+			}
+
+			// Sending wifi task a need to read speaker data
+			xStatus = xQueueSendToBack(xqueueADXtoWIFI, &speaker_data, xTicksToWait);
+			vTaskDelay(1000);
+
+			SPEAKER1: if(xQueueReceive(xqueueWIFItoADX, &speaker_data, xTicksToWait4Response) != pdPASS){
+				ESP_LOGE(ADX_TAG, "Could not receive response from server");
+				goto SPEAKER1;
+			}
+			else if(speaker_data.send_receive == 0xff){
+				ESP_LOGE(ADX_TAG, "Received error from wifi task");
+				free(speaker_data.data_pointer);
+				goto END;
+			}
+
+			ESP_LOGI(ADX_TAG, "Received speaker data for output");
+
+			flag = app_speaker(speaker_data.data_pointer, speaker_data.data_size, &speaker_flag);
+			free(speaker_data.data_pointer);
+
+			if(flag == ESP_FAIL){
+				ESP_LOGE(ADX_TAG, "Failed to output audio");
+				ESP_LOGE(ADX_TAG, "Error number: 0x%x", speaker_flag);
+				goto END;
+			}
 
 			END: 
 			vTaskResume(xTaskMic);
@@ -386,7 +442,7 @@ static void mic_task(void *pvParameters){
 	MicData speaker_data = {
 		.send_receive = WIFI_RECEIVE|SPEAKER_TYPE,
 		.data_size = sizeof(size_t)
-	}
+	};
 
 	ESP_LOGI(MIC_TAG, "\t\tMicrophone Task is running on: %d", xPortGetCoreID());
 
@@ -719,7 +775,7 @@ static void wifi_task(void *pvParameters){
 				if(flag == ESP_FAIL){
 					ESP_LOGE(WIFI_TAG, "\t\t\t\tFailed to send microphone data to server");
 					goto ERROR1;
-				}.3
+				}
 
 				MICCONFIRM: if(xQueueSendToBack(xqueueWIFItoMIC, &confirm_mes1, xTicksToWait1) != pdPASS){
 					ESP_LOGE(WIFI_TAG, "\t\t\t\tCould not send confirmation of transmission to MIC task");
@@ -732,15 +788,15 @@ static void wifi_task(void *pvParameters){
 				if((data_received1.send_receive & 0x0e) == SPEAKER_TYPE){
 
 					ESP_LOGI(WIFI_TAG, "\t\t\t\tReading size of data from server");
-					res = read(sock, (void *)data_received1.data_size, sizeof(size_t));
+					res = read(sock, (void *)&data_received1.data_size, sizeof(size_t));
 
 					if(res <= 0){
 						ESP_LOGE(WIFI_TAG, "\t\t\t\tFailed to read from server");
 						goto ERROR1;
 					}
 
-					ESP_LOGI(WIFI_TAG, "\t\t\t\tSize of data to be read from server: %zu", *data_received1.data_size);
-					res = send(sock, (void *)data_received1.data_size, sizeof(size_t), 0);
+					ESP_LOGI(WIFI_TAG, "\t\t\t\tSize of data to be read from server: %zu", data_received1.data_size);
+					res = send(sock, (void *)&data_received1.data_size, sizeof(size_t), 0);
 					ESP_LOGI(WIFI_TAG, "\t\t\t\tSent back the data size to server for confirmation");
 
 					data_received1.data_pointer = (uint8_t *)heap_caps_malloc(MAX_AUDIO_SIZE * sizeof(uint8_t), MALLOC_CAP_SPIRAM);
@@ -749,13 +805,13 @@ static void wifi_task(void *pvParameters){
 						goto ERROR1;
 					}
 
-					flag = audio_receive(data_received1.data_pointer, *data_received1.data_size, sock);
+					flag = audio_receive(data_received1.data_pointer, data_received1.data_size, sock);
 					if(flag == ESP_FAIL){
 						ESP_LOGE(WIFI_TAG, "\t\t\t\tFailed to read audio data from server");
 						goto ERROR1;
 					}
 
-					MICREAD2: if(xQueueSendToBack(xqueueWIFItoADX, &data_received1, xTicksToWait1) != pdPASS){
+					MICREAD2: if(xQueueSendToBack(xqueueWIFItoMIC, &data_received1, xTicksToWait1) != pdPASS){
 						ESP_LOGE(WIFI_TAG, "\t\t\t\tCould not send data from server to ADX task");
 						goto MICREAD2;
 					}else
@@ -768,12 +824,12 @@ static void wifi_task(void *pvParameters){
 
 					if(res <= 0){
 						ESP_LOGE(WIFI_TAG, "\t\t\t\tFailed to read from server");
-						goto ERROR;
+						goto ERROR1;
 					}
 
 					data_received1.data_size = res;
 
-					MICREAD: if(xQueueSendToBack(xqueueWIFItoADX, &data_received1, xTicksToWait1) != pdPASS){
+					MICREAD: if(xQueueSendToBack(xqueueWIFItoMIC, &data_received1, xTicksToWait1) != pdPASS){
 						ESP_LOGE(WIFI_TAG, "\t\t\t\tCould not send data from server to MIC task");
 						goto MICREAD;
 					}else
@@ -787,7 +843,7 @@ static void wifi_task(void *pvParameters){
 		}
 		else if(1==0){
 			ERROR1: ESP_LOGI(WIFI_TAG, "Sending to MIC task an error message");
-			if(xQueueSendToBack(xqueueWIFItoADX, &error_mes1, xTicksToWait1) != pdPASS){
+			if(xQueueSendToBack(xqueueWIFItoMIC, &error_mes1, xTicksToWait1) != pdPASS){
 				ESP_LOGE(WIFI_TAG, "\t\t\t\tCould not send error message to MIC task");
 				goto ERROR1;
 			}else

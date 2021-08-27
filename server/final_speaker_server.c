@@ -54,7 +54,7 @@ void printWavHeader(struct wav_header_t header){
 }
 
 // Function designed for chat between client and server. 
-void wav_read_send(int sockfd) 
+int wav_read_send(int sockfd) 
 {
 	const char *done = "done";
 
@@ -69,7 +69,7 @@ void wav_read_send(int sockfd)
 	wav = fopen(wavFile, "r");
 	if (wav == NULL){
 		fprintf(stderr, "ERROR Failed to open WAV file: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
+		return errno;
 	}
 	
 	// Read in WAV header
@@ -77,12 +77,12 @@ void wav_read_send(int sockfd)
 	ssize_t retsize = fread(&header_pt1, sizeof(char), sizeof(header_pt1), wav);
 	if (retsize <= 0 || retsize != sizeof(header_pt1)){
 		fprintf(stderr, "ERROR Failed to read header of WAV file: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
+		return errno;
 	}
 	if (header_pt1.riff != 0x46464952 || header_pt1.wave != 0x45564157 || header_pt1.fmt != 0x20746d66){
 		printf("ERROR Failed to store header of WAV file correctly\n");
 		printf("RIFF: %x    WAVE: %x    FMT: %x\n", header_pt1.riff, header_pt1.wave, header_pt1.fmt);
-		exit(1);
+		return -1;
 	}
 
 	printWavHeader(header_pt1);
@@ -93,7 +93,7 @@ void wav_read_send(int sockfd)
 
 		if (fread(&tmpChar, sizeof(char), sizeof(char), wav) < 0){
 			fprintf(stderr, "ERROR Failed to read from WAV file: %s\n", strerror(errno));
-			exit(EXIT_FAILURE);
+			return errno;
 		}
 
 		if (tmpChar == 'd' && data_read == 0)
@@ -118,8 +118,8 @@ void wav_read_send(int sockfd)
 
 	printf("------Sending data size to ESP------\n");
 	if(write(sockfd, &new_data_size, sizeof(new_data_size)) < 0){
-			fprintf(stderr, "ERROR Data size write to socket failed: %s\n", strerror(errno));
-			exit(EXIT_FAILURE);
+		fprintf(stderr, "ERROR Data size write to socket failed: %s\n", strerror(errno));
+		return errno;
 	}
 	
 	uint32_t tmp_size;
@@ -130,12 +130,12 @@ void wav_read_send(int sockfd)
 		if(errno == ENOTCONN || errno == ECONNRESET || errno == ECONNABORTED){
 			return errno;
 		}
-		goto READ4:
+		goto READ4;
 	}
 	
 	if(tmp_size != new_data_size){
 		fprintf(stderr, "ERROR Data size of %d returned from client is incorrect: %s\n", tmp_size, strerror(errno));
-		exit(EXIT_FAILURE);
+		return errno;
 	}else{
 		printf("Correct audio size of %d sent to client\n", tmp_size);
 		/*if(write(sockfd, done, 4) < 0){
@@ -157,7 +157,7 @@ void wav_read_send(int sockfd)
 		retsize = fread(tmp, sizeof(char), 2*sizeof(char), wav);
 		if(retsize < 0){
 			fprintf(stderr, "ERROR Failed to read data from WAV file: %s\n", strerror(errno));
-			exit(EXIT_FAILURE);
+			return errno;
 		}
 
 		memcpy(audio_buf, right_ch_padding, 2*sizeof(char));
@@ -180,8 +180,8 @@ void wav_read_send(int sockfd)
 
 	printf("------Sending WAV data to ESP------\n");
 	if(write(sockfd, audio_buf, new_data_size) < 0){
-			fprintf(stderr, "ERROR Data write to socket failed: %s", strerror(errno));
-			exit(EXIT_FAILURE);
+		fprintf(stderr, "ERROR Data write to socket failed: %s", strerror(errno));
+		return errno;
 	}
 
 	printf("Waiting for audio transfer completion...\n");

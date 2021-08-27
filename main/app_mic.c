@@ -45,7 +45,7 @@
 
 extern int MAX_WIFI_LEN;
 
-const int RECORD_TIME = 10; //Seconds
+const int RECORD_TIME = 5; //Seconds
 const int RECORD_SIZE = (I2S_CHANNEL_NUM * I2S_SAMPLE_RATE * I2S_SAMPLE_BITS/ 8 * RECORD_TIME);
 
 

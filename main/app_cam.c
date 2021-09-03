@@ -24,15 +24,15 @@ static const char *WIFI_TAG = "app_wifi";
 const int IMAGE_NUM = 10;
 
 
-esp_err_t app_cam(uint8_t *fb, size_t *fs){
+esp_err_t app_cam(uint8_t *fb, size_t *fs, int img_num){
 	
 	camera_fb_t *single_fb;
 	size_t single_fs;
 	size_t offset = 0;
 	
-	ESP_LOGI(CAM_TAG, "*** Preparing to capture %d JPG frames ***", IMAGE_NUM);
+	ESP_LOGI(CAM_TAG, "*** Preparing to capture %d JPG frames ***", img_num);
 	
-	for(int i = 0; i < IMAGE_NUM; i++){
+	for(int i = 0; i < img_num; i++){
 		
 		if(i == 0){
 			single_fb = esp_camera_fb_get();
@@ -65,7 +65,7 @@ esp_err_t app_cam(uint8_t *fb, size_t *fs){
 		esp_camera_fb_return(single_fb);
 	}
 	
-	ESP_LOGI(CAM_TAG, "*** Completed capture of %d JPG frames ***", IMAGE_NUM);
+	ESP_LOGI(CAM_TAG, "*** Completed capture of %d JPG frames ***", img_num);
 	return ESP_OK;
 }
 

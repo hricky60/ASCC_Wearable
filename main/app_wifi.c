@@ -18,7 +18,7 @@
 #include <lwip/netdb.h>
 
 // Constant variables initialized
-#define HOST_IP_ADDR "192.168.90.246"
+#define HOST_IP_ADDR "192.168.1.126"
 #define PORT 3333
 
 static const char *WIFI_TAG = "app_wifi";

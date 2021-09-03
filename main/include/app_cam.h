@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-esp_err_t app_cam(uint8_t *fb, size_t *fs);
+esp_err_t app_cam(uint8_t *fb, size_t *fs, int img_num);
 
 esp_err_t cam_send(uint8_t *fb, size_t *fs, int sock);
 

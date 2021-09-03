@@ -45,7 +45,7 @@
 
 extern int MAX_WIFI_LEN;
 
-const int RECORD_TIME = 5; //Seconds
+const int RECORD_TIME = 7; //Seconds
 const int RECORD_SIZE = (I2S_CHANNEL_NUM * I2S_SAMPLE_RATE * I2S_SAMPLE_BITS/ 8 * RECORD_TIME);
 
 
@@ -236,11 +236,11 @@ esp_err_t app_mic(uint8_t *i2s_read_data, size_t *size)
 
 	ESP_LOGI(TAG, "Data pointer address after allocation: %p", i2s_read_data);
 	
-	ESP_LOGI(TAG, "Starting to record in 3 seconds....");
+	ESP_LOGI(TAG, "Starting to record in 1.5 seconds....");
 	for(int i=3; i>0; i--)
 	{
 		ESP_LOGI(TAG, "....%d....", i);
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
+		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
 
 	if(mic_flag == 0x01){

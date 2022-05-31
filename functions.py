@@ -42,7 +42,7 @@ class Dataset_3DCNN(data.Dataset):
     def read_images(self, path, selected_folder, use_transform):
         X = []
         for i in self.frames:
-            image = Image.open(os.path.join(path, selected_folder, 'frame{:06d}.jpg'.format(i))).convert('L')
+            image = Image.open(os.path.join(path, selected_folder, 'newframe{:06d}.jpg'.format(i))).convert('L')
 
             if use_transform is not None:
                 image = use_transform(image)
@@ -83,7 +83,7 @@ class Dataset_CRNN(data.Dataset):
     def read_images(self, path, selected_folder, use_transform):
         X = []
         for i in self.frames:
-            image = Image.open(os.path.join(path, selected_folder, 'frame{:06d}.jpg'.format(i)))
+            image = Image.open(os.path.join(path, selected_folder, 'newframe{:06d}.jpg'.format(i)))
 
             if use_transform is not None:
                 image = use_transform(image)

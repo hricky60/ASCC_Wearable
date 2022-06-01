@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from PIL import Image
+from PIL import ImageFile, Image
 from torch.utils import data
 import torch
 import torch.nn as nn
@@ -8,6 +8,8 @@ import torch.nn.functional as F
 import torchvision.models as models
 import torchvision.transforms as transforms
 from tqdm import tqdm
+
+ImageFile.LOAD_TRUNCATED_IMAGES=True
 
 ## ------------------- label conversion tools ------------------ ##
 def labels2cat(label_encoder, list):
